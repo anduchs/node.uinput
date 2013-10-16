@@ -1,0 +1,19 @@
+{
+  "name": "uinput",
+  "version": "0.1.0",
+  "author": "Andreas Fuchs <anduchs@gmail.com>",
+  "description": "Provides a convinient way to simulate input devices",
+  "license": "LGPLv3",
+  "readmeFilename": "README.md",
+  "homepage": "http://github.com/anduchs/node.uinput",
+  "keywords": [
+    "uinput",
+    "input",
+    "linux",
+    "ioctl"
+  ],
+  "main": "uinput.js",
+  "dependencies": {
+    "LLioctl": "0.1"
+  }
+}
