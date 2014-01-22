@@ -11,7 +11,6 @@
 var fs = require("fs");
 var LLioctl = require("LLioctl");
 
-exports = {};
 //TODO: Rework to use redefines...
 //TODO: Make this a generated extra-dist file instead of parsing during runtime...
 //TODO: rework to allow for exports.KEY.A etc
