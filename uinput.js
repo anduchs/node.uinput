@@ -77,11 +77,47 @@ var UInputUserDev = CStruct({
   , abs_flat: CRef.types.uint32
 });
 
-
-exports.createKeyboard = function () {
-    fd = fs.openSync("/dev/uinput", "w");
-    ret = LLioctl(fd, exports.UINPUT_H.UI_SET_EVBIT, exports.INPUT_H.EV.EV_KEY);
-    
+function unmask(fd, type, name) {
+    var x = UINPUT_H["UI_SET_" + type + "BIT"];
+    var y = INPUT_H[type][name];
+    return LLioctl(fd, x, y);
 }
 
+function inject(fd, type, name, value) {
+    console.log("injecting %s, %s, %s", type, name, value);
+    var ev = new InputEvent();
+    ev.type = INPUT_H.EV[type];
+    ev.name = INPUT_H[type][name];
+    ev.value = value;
+    fd.write(ev.ref());
+}
 
+function Device(type) {
+    if (! this instanceof Device) return new Device(type);
+    this.fd = fs.openSync("/dev/uinput", "w");
+    this.type = type;
+    this.obj = {};
+    unmask(this.fd, "EV", type);
+    unmask(this.fd, "EV", "SYN");
+}
+Device.prototype = {
+    produces: function(name) {
+        unmask(this.fd, this.type, name);
+        console.log("binding %s %s", this.type, name);
+        this.obj["put"+name] = inject.bind(this.fd, this.type, name);
+    },
+    create: function() {
+        var uidev = new UInputUserDev;
+        console.log(typeof uidev.name);
+        uidev.name.buffer.fill(0);
+        uidev.id.bustype = 1;
+        uidev.id.vendor = 1;
+        uidev.id.product = 1;
+        uidev.id.version = 1;
+        fs.write(this.fd, uidev.ref());
+        var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_CREATE);
+        return this.obj;
+    }
+}
+
+exports.Device = Device;
