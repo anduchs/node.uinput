@@ -82,9 +82,14 @@ function unmask(fd, type, name) {
     var x = UINPUT_H["UI_SET_" + type + "BIT"];
     var y = INPUT_H[type][name];
 
-    if (x === undefined) console.log("Trying to unmask unknown type %s", type);
-    if (y === undefined) console.log("Trying to unmask unknown name %s", name);
-    if (x !== undefined && y !== undefined) return LLioctl(fd, x, y);
+    if (x === undefined) console.error("Trying to unmask unknown type %s", type);
+    if (y === undefined) console.error("Trying to unmask unknown name %s", name);
+    if (x !== undefined && y !== undefined) {
+        var ret = LLioctl(fd, x, y);
+        if (ret < 0) {
+            console.error("Error from ioctl while unmasking %s_%s", x, y);
+        }
+    }
 }
 
 function inject(type, name, value) {
@@ -96,21 +101,26 @@ function inject(type, name, value) {
     fs.write(this, ev.ref() );
 }
 
-function Device(type, path) {
-    if (! this instanceof Device) return new Device(type);
+function Device(path) {
+    if (! this instanceof Device) return new Device(path);
     this.fd = fs.openSync(path || "/dev/uinput", "w");
-    this.type = type;
     this.obj = {};
-    unmask(this.fd, "EV", type);
-    unmask(this.fd, "EV", "SYN");
     this.obj.syn = function() {
         inject('SYN', 'REPORT', 0);
     }
 }
 Device.prototype = {
     produces: function(name) {
-        unmask(this.fd, this.type, name);
-        this.obj["put"+name] = inject.bind(this.fd, this.type, name);
+        var s = name.split("_");
+        if (s.length !== 2) {
+            console.error("Use names like KEY_M");
+            return;
+        }
+        var type = s[0];
+        name = s[1];
+        unmask(this.fd, "EV", type); //Hope this is idempotent
+        unmask(this.fd, type, name);
+        this.obj["put"+name] = inject.bind(this.fd, type, name);
     },
     create: function(name, vendor, product, version) {
         var uidev = new UInputUserDev;
@@ -122,10 +132,12 @@ Device.prototype = {
         uidev.id.version = version || 1;
         fs.write(this.fd, uidev.ref());
         var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_CREATE);
+        if (ret < 0) console.error("Error from ioctl while creating device: %s", ret);
         return this.obj;
     },
     destroy: function() {
-        LLioctl(this.fd, UINPUT_H.UI_DEV_DESTROY);
+        var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_DESTROY);
+        if (ret < 0) console.error("Error from ioctl while destroying device");
     }
 }
 
