@@ -96,22 +96,26 @@ function inject(type, name, value) {
     fs.write(this, ev.ref() );
 }
 
-function Device(type) {
+function Device(type, path) {
     if (! this instanceof Device) return new Device(type);
-    this.fd = fs.openSync("/dev/uinput", "w");
+    this.fd = fs.openSync(path || "/dev/uinput", "w");
     this.type = type;
     this.obj = {};
     unmask(this.fd, "EV", type);
     unmask(this.fd, "EV", "SYN");
+    this.obj.syn = function() {
+        inject('SYN', 'REPORT', 0);
+    }
 }
 Device.prototype = {
     produces: function(name) {
         unmask(this.fd, this.type, name);
         this.obj["put"+name] = inject.bind(this.fd, this.type, name);
     },
-    create: function(vendor, product, version) {
+    create: function(name, vendor, product, version) {
         var uidev = new UInputUserDev;
         uidev['ref.buffer'].fill(0);
+        uidev.name.buffer.write(name || '');
         uidev.id.bustype = INPUT_H.BUS.USB;
         uidev.id.vendor = vendor || 1;
         uidev.id.product = product || 1;
@@ -119,6 +123,9 @@ Device.prototype = {
         fs.write(this.fd, uidev.ref());
         var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_CREATE);
         return this.obj;
+    },
+    destroy: function() {
+        LLioctl(this.fd, UINPUT_H.UI_DEV_DESTROY);
     }
 }
 
