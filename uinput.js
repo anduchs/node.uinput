@@ -81,12 +81,16 @@ var UInputUserDev = CStruct({
 function unmask(fd, type, name) {
     var x = UINPUT_H["UI_SET_" + type + "BIT"];
     var y = INPUT_H[type][name];
-    return LLioctl(fd, x, y);
+
+    if (x === undefined) console.log("Trying to unmask unknown type %s", type);
+    if (y === undefined) console.log("Trying to unmask unknown name %s", name);
+    if (x !== undefined && y !== undefined) return LLioctl(fd, x, y);
 }
 
 function inject(type, name, value) {
     console.log("injecting %s, %s, %s", type, name, value);
     var ev = new InputEvent();
+    ev['ref.buffer'].fill(0);
     ev.type = INPUT_H.EV[type];
     ev.name = INPUT_H[type][name];
     if (value != undefined) ev.value = value;
@@ -107,13 +111,13 @@ Device.prototype = {
         console.log("binding %s %s", this.type, name);
         this.obj["put"+name] = inject.bind(this.fd, this.type, name);
     },
-    create: function() {
+    create: function(vendor, product, version) {
         var uidev = new UInputUserDev;
-        uidev.name.buffer.fill(0);
-        uidev.id.bustype = 1;
-        uidev.id.vendor = 1;
-        uidev.id.product = 1;
-        uidev.id.version = 1;
+        uidev['ref.buffer'].fill(0);
+        uidev.id.bustype = INPUT_H.BUS.USB;
+        uidev.id.vendor = vendor || 1;
+        uidev.id.product = product || 1;
+        uidev.id.version = version || 1;
         fs.write(this.fd, uidev.ref());
         var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_CREATE);
         return this.obj;
