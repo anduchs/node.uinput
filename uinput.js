@@ -88,7 +88,6 @@ function unmask(fd, type, name) {
 }
 
 function inject(type, name, value) {
-    console.log("injecting %s, %s, %s", type, name, value);
     var ev = new InputEvent();
     ev['ref.buffer'].fill(0);
     ev.type = INPUT_H.EV[type];
@@ -108,7 +107,6 @@ function Device(type) {
 Device.prototype = {
     produces: function(name) {
         unmask(this.fd, this.type, name);
-        console.log("binding %s %s", this.type, name);
         this.obj["put"+name] = inject.bind(this.fd, this.type, name);
     },
     create: function(vendor, product, version) {
