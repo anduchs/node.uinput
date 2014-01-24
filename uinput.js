@@ -19,9 +19,9 @@ fs.readFileSync("/usr/include/linux/input.h", "ascii").split("\n").
         if (!match) return;
         var type = match[1], name = match[2], value = match[3];
         INPUT_H[type] = INPUT_H[type] || {};
-        INPUT_H[type][name] = value;
+        INPUT_H[type][name] = +value;
         if (parseInt(name)) {
-            INPUT_H[type][type + "_" + name] = value;
+            INPUT_H[type][type + "_" + name] = +value;
         }
     })
 
