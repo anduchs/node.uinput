@@ -1,5 +1,5 @@
-/**
- * Copyright 2013, Andreas Fuchs
+/*
+ * Copyright 2013, Andreas Fuchs, Stefan Buller
  * 
  * 
  * 
