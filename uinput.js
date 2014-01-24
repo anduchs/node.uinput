@@ -10,6 +10,9 @@
 
 var fs = require("fs");
 var LLioctl = require("LLioctl");
+var CRef = require("ref");
+var CArray = require("ref-array");
+var CStruct = require("ref-struct");
 
 var INPUT_H = {};
 exports.INPUT_H = INPUT_H;
@@ -52,6 +55,27 @@ UINPUT_H.UI_SET_PHYS		_IOW(UINPUT_IOCTL_BASE, 108, char*)
 UINPUT_H.UI_SET_SWBIT		_IOW(UINPUT_IOCTL_BASE, 109, int)
 UINPUT_H.UI_SET_PROPBIT		_IOW(UINPUT_IOCTL_BASE, 110, int)*/
 
+var InputId = CStruct({
+    bustype: CRef.types.uint16
+  , vendor: CRef.types.uint16
+  , product: CRef.types.uint16
+  , version: CRef.types.uint16
+});
+var InputEvent = CStruct({
+    timestruct: CArray('char', 16)
+  , type: CRef.types.uint16
+  , code: CRef.types.uint16
+  , value: CRef.types.uint32
+});
+var UInputUserDev = CStruct({
+    name: CArray('char', 80)
+  , id: InputId
+  , ff_max: CRef.types.uint32
+  , abs_max: CRef.types.uint32
+  , abs_min: CRef.types.uint32
+  , abs_fuzz: CRef.types.uint32
+  , abs_flat: CRef.types.uint32
+});
 
 
 exports.createKeyboard = function () {
