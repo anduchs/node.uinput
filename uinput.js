@@ -55,6 +55,7 @@ UINPUT_H.UI_SET_PHYS		_IOW(UINPUT_IOCTL_BASE, 108, char*)
 UINPUT_H.UI_SET_SWBIT		_IOW(UINPUT_IOCTL_BASE, 109, int)
 UINPUT_H.UI_SET_PROPBIT		_IOW(UINPUT_IOCTL_BASE, 110, int)*/
 
+var ABS_MAX = 0x3f;
 var InputId = CStruct({
     bustype: CRef.types.uint16
   , vendor: CRef.types.uint16
@@ -71,10 +72,10 @@ var UInputUserDev = CStruct({
     name: CArray('char', 80)
   , id: InputId
   , ff_max: CRef.types.uint32
-  , abs_max: CRef.types.uint32
-  , abs_min: CRef.types.uint32
-  , abs_fuzz: CRef.types.uint32
-  , abs_flat: CRef.types.uint32
+  , abs_max: CArray(CRef.types.uint32, ABS_MAX + 1)
+  , abs_min: CArray(CRef.types.uint32, ABS_MAX + 1)
+  , abs_fuzz: CArray(CRef.types.uint32, ABS_MAX + 1)
+  , abs_flat: CArray(CRef.types.uint32, ABS_MAX + 1)
 });
 
 function unmask(fd, type, name) {
@@ -83,13 +84,13 @@ function unmask(fd, type, name) {
     return LLioctl(fd, x, y);
 }
 
-function inject(fd, type, name, value) {
+function inject(type, name, value) {
     console.log("injecting %s, %s, %s", type, name, value);
     var ev = new InputEvent();
     ev.type = INPUT_H.EV[type];
     ev.name = INPUT_H[type][name];
-    ev.value = value;
-    fd.write(ev.ref());
+    if (value != undefined) ev.value = value;
+    fs.write(this, ev.ref() );
 }
 
 function Device(type) {
@@ -108,7 +109,6 @@ Device.prototype = {
     },
     create: function() {
         var uidev = new UInputUserDev;
-        console.log(typeof uidev.name);
         uidev.name.buffer.fill(0);
         uidev.id.bustype = 1;
         uidev.id.vendor = 1;
