@@ -41,8 +41,8 @@ IOCTL_IOR = function(i, size) {
 var UINPUT_H = {};
 exports.UINPUT_H = UINPUT_H;
 UINPUT_H.UINPUT_IOCTL_BASE  = 'U';
-UINPUT_H.UI_DEV_CREATE      = IOCTL_IO(0);
-UINPUT_H.UI_DEV_DESTROY		= IOCTL_IO(1);
+UINPUT_H.UI_DEV_CREATE      = IOCTL_IO(1);
+UINPUT_H.UI_DEV_DESTROY		= IOCTL_IO(2);
 UINPUT_H.UI_SET_EVBIT		= IOCTL_IOW(100,4);
 UINPUT_H.UI_SET_KEYBIT		= IOCTL_IOW(101,4);
 UINPUT_H.UI_SET_RELBIT		= IOCTL_IOW(102,4);
@@ -72,10 +72,10 @@ var UInputUserDev = CStruct({
     name: CArray('char', 80)
   , id: InputId
   , ff_max: CRef.types.uint32
-  , abs_max: CArray(CRef.types.uint32, ABS_MAX + 1)
-  , abs_min: CArray(CRef.types.uint32, ABS_MAX + 1)
-  , abs_fuzz: CArray(CRef.types.uint32, ABS_MAX + 1)
-  , abs_flat: CArray(CRef.types.uint32, ABS_MAX + 1)
+  , abs_max: CArray(CRef.types.int32, ABS_MAX + 1)
+  , abs_min: CArray(CRef.types.int32, ABS_MAX + 1)
+  , abs_fuzz: CArray(CRef.types.int32, ABS_MAX + 1)
+  , abs_flat: CArray(CRef.types.int32, ABS_MAX + 1)
 });
 
 function unmask(fd, type, name) {
@@ -92,22 +92,20 @@ function unmask(fd, type, name) {
     }
 }
 
-function inject(type, name, value) {
+function inject(output, type, name, value) {
     var ev = new InputEvent();
     ev['ref.buffer'].fill(0);
     ev.type = INPUT_H.EV[type];
     ev.name = INPUT_H[type][name];
     if (value != undefined) ev.value = value;
-    fs.write(this, ev.ref() );
+    output.write(ev.ref());
 }
 
 function Device(path) {
     if (! this instanceof Device) return new Device(path);
-    this.fd = fs.openSync(path || "/dev/uinput", "w");
+    this.output = fs.createWriteStream(path || "/dev/uinput", "w");
     this.obj = {};
-    this.obj.syn = function() {
-        inject('SYN', 'REPORT', 0);
-    }
+    this.obj.syn = inject.bind({}, this.output, 'SYN', 'REPORT', 0);
 }
 Device.prototype = {
     produces: function(name) {
@@ -118,26 +116,28 @@ Device.prototype = {
         }
         var type = s[0];
         name = s[1];
-        unmask(this.fd, "EV", type); //Hope this is idempotent
-        unmask(this.fd, type, name);
-        this.obj["put"+name] = inject.bind(this.fd, type, name);
+        unmask(this.output.fd, "EV", type); //Hope this is idempotent
+        unmask(this.output.fd, type, name);
+        this.obj["put"+name] = inject.bind({}, this.output, type, name);
     },
     create: function(name, vendor, product, version) {
         var uidev = new UInputUserDev;
+        var ret;
         uidev['ref.buffer'].fill(0);
         uidev.name.buffer.write(name || '');
         uidev.id.bustype = INPUT_H.BUS.USB;
         uidev.id.vendor = vendor || 1;
         uidev.id.product = product || 1;
         uidev.id.version = version || 1;
-        fs.write(this.fd, uidev.ref());
-        var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_CREATE);
+        this.output.write(uidev.ref());
+        ret = LLioctl(this.output.fd, UINPUT_H.UI_DEV_CREATE);
         if (ret < 0) console.error("Error from ioctl while creating device: %s", ret);
         return this.obj;
     },
     destroy: function() {
-        var ret = LLioctl(this.fd, UINPUT_H.UI_DEV_DESTROY);
+        var ret = LLioctl(this.output.fd, UINPUT_H.UI_DEV_DESTROY);
         if (ret < 0) console.error("Error from ioctl while destroying device");
+        this.output.end();
     }
 }
 
