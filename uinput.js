@@ -1,11 +1,6 @@
 /*
  * Copyright 2013, Andreas Fuchs, Stefan Buller
  * 
- * 
- * 
- * TODOs:
- * - 
- * 
  **/
 
 var fs = require("fs");
@@ -13,6 +8,7 @@ var LLioctl = require("LLioctl");
 var CRef = require("ref");
 var CArray = require("ref-array");
 var CStruct = require("ref-struct");
+var util = require("util");
 
 var INPUT_H = {};
 exports.INPUT_H = INPUT_H;
@@ -78,67 +74,49 @@ var UInputUserDev = CStruct({
   , abs_flat: CArray(CRef.types.int32, ABS_MAX + 1)
 });
 
-function unmask(fd, type, name) {
+function unmask(output, type, name, cb) {
     var x = UINPUT_H["UI_SET_" + type + "BIT"];
     var y = INPUT_H[type][name];
 
-    if (x === undefined) console.error("Trying to unmask unknown type %s", type);
-    if (y === undefined) console.error("Trying to unmask unknown name %s", name);
+    if (x === undefined) cb(util.format("Trying to unmask unknown type %s", type));
+    if (y === undefined) cb(util.format("Trying to unmask unknown name %s", name));
     if (x !== undefined && y !== undefined) {
-        var ret = LLioctl(fd, x, y);
+        var ret = LLioctl(output.fd, x, y);
         if (ret < 0) {
-            console.error("Error from ioctl while unmasking %s_%s", x, y);
+            cb(util.format("Error %s from ioctl while unmasking %s_%s", ret, x, y));
+        } else {
+            cb();
         }
     }
 }
 
-function inject(output, type, name, value) {
+function inject(output, type, name, value, cb) {
     var ev = new InputEvent();
     ev['ref.buffer'].fill(0);
     ev.type = INPUT_H.EV[type];
     ev.name = INPUT_H[type][name];
     if (value != undefined) ev.value = value;
-    output.write(ev.ref());
+    output.write(ev.ref(), cb);
 }
 
-function Device(path) {
-    if (! this instanceof Device) return new Device(path);
-    this.output = fs.createWriteStream(path || "/dev/uinput", "w");
-    this.obj = {};
-    this.obj.syn = inject.bind({}, this.output, 'SYN', 'REPORT', 0);
-}
-Device.prototype = {
-    produces: function(name) {
-        var s = name.split("_");
-        if (s.length !== 2) {
-            console.error("Use names like KEY_M");
-            return;
-        }
-        var type = s[0];
-        name = s[1];
-        unmask(this.output.fd, "EV", type); //Hope this is idempotent
-        unmask(this.output.fd, type, name);
-        this.obj["put"+name] = inject.bind({}, this.output, type, name);
-    },
-    create: function(name, vendor, product, version) {
-        var uidev = new UInputUserDev;
-        var ret;
-        uidev['ref.buffer'].fill(0);
-        uidev.name.buffer.write(name || '');
-        uidev.id.bustype = INPUT_H.BUS.USB;
-        uidev.id.vendor = vendor || 1;
-        uidev.id.product = product || 1;
-        uidev.id.version = version || 1;
-        this.output.write(uidev.ref());
-        ret = LLioctl(this.output.fd, UINPUT_H.UI_DEV_CREATE);
-        if (ret < 0) console.error("Error from ioctl while creating device: %s", ret);
-        return this.obj;
-    },
-    destroy: function() {
-        var ret = LLioctl(this.output.fd, UINPUT_H.UI_DEV_DESTROY);
-        if (ret < 0) console.error("Error from ioctl while destroying device");
-        this.output.end();
-    }
+function create(output, name, vendor, product, version, cb) {
+    var uidev = new UInputUserDev;
+    var ret;
+    uidev['ref.buffer'].fill(0);
+    uidev.name.buffer.write(name || '');
+    uidev.id.bustype = INPUT_H.BUS.USB;
+    uidev.id.vendor = vendor || 1;
+    uidev.id.product = product || 1;
+    uidev.id.version = version || 1;
+    output.write(uidev.ref(), function() {
+        var ret = LLioctl(output.fd, UINPUT_H.UI_DEV_CREATE);
+        if (ret < 0)
+            cb(util.format("Error from ioctl while creating device: %s", ret));
+        else
+            cb();
+    });
 }
 
-exports.Device = Device;
+exports.unmask = unmask;
+exports.inject = inject;
+exports.create = create;
