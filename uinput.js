@@ -80,6 +80,7 @@ function unmask(output, type, name, cb) {
 
     if (x === undefined) cb(util.format("Trying to unmask unknown type %s", type));
     if (y === undefined) cb(util.format("Trying to unmask unknown name %s", name));
+    if (output.fd === null) cb("Please wait until output is opened");
     if (x !== undefined && y !== undefined) {
         var ret = LLioctl(output.fd, x, y);
         if (ret < 0) {
@@ -94,7 +95,7 @@ function inject(output, type, name, value, cb) {
     var ev = new InputEvent();
     ev['ref.buffer'].fill(0);
     ev.type = INPUT_H.EV[type];
-    ev.name = INPUT_H[type][name];
+    ev.code = INPUT_H[type][name];
     if (value != undefined) ev.value = value;
     output.write(ev.ref(), cb);
 }
